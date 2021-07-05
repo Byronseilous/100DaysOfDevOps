@@ -1,0 +1,155 @@
+* What is the Pipeline?
+
+    * A pipeline is typically referred to as a part of Continuous Integration and it’s mostly used to merge developer changes into code mainline.
+
+* Why do we need a pipeline?
+
+    * Test changes before pushing to Production
+    * Another pair of eyes in terms of approval
+    * Logging to see who and when someone pushed the changes
+    * Separate workspace/tfstate for Development and Production Environment
+
+* Pipeline Architecture
+
+![Pipeline Architecture](https://miro.medium.com/max/1400/1*i8mcxAZfcSkZ_88CGAA6pw.jpeg)
+
+* How Jenkins Terraform Pipeline Works?
+
+    * User push their code changes to GitHub
+    * Code change trigger a Git Webhooks which triggers the terraform pipeline
+
+* Setting up Jenkins on Ubuntu 22.04 or 20.04
+
+    * Update Ubuntu 22.04 or 20.04
+
+    ```sh
+    $ sudo apt update && sudo apt upgrade
+    ```
+
+    * Install OpenJDK
+
+    ```sh
+    $ sudo apt install default-jdk
+    ```
+
+    * Add Jenkins GPG key on Ubuntu 22.04 or 20.04
+
+    ```sh
+    $ sudo mkdir -p /usr/share/keyrings
+    ```
+
+    ```sh
+    $ curl -fsSL https://pkg.jenkins.io/debian-stable/jenkins.io.key | sudo tee /usr/share/keyrings/jenkins-keyring.asc > /dev/null
+    ```
+
+    * Enable Jenkins repository on Bullseye
+
+    ```sh
+    $ echo deb [signed-by=/usr/share/keyrings/jenkins-keyring.asc] \
+    https://pkg.jenkins.io/debian-stable binary/ | sudo tee /etc/apt/sources.list.d/jenkins.list > /dev/null
+    ```
+
+    * Run system update
+
+    ```sh
+    $ sudo apt update
+    ```
+
+    * Install Jenkins on Ubuntu 22.04 | 20.04
+
+    ```sh
+    $ sudo apt install jenkins
+    ```
+
+    * Check the Service status
+
+    ```sh
+    systemctl status jenkins --no-pager -l
+    ```
+
+    ```sh
+    $ sudo systemctl enable --now jenkins
+    ```
+
+    * Find Jenkins Administrator password
+
+    ```sh
+    $ sudo cat /var/lib/jenkins/secrets/initialAdminPassword
+    ```
+    * Access Web Interface
+
+    ```sh
+    $ http://server-ip:8080
+    ```
+
+    ###### Note: Don’t forget to open port 8080 in the firewall, if you are on the remote server. In your terminal use:
+
+    ```sh
+    $ sudo ufw allow 8080
+    ```
+
+    * Those who are on a Cloud hosting server, and need to whitelist the port in their service provider firewall.
+
+    * On the Web interface, enter the password you got in the previous step to securely start the setup process.
+
+    ![rep](https://www.how2shout.com/linux/wp-content/uploads/2022/06/Access-Web-Interface-Jenkins.png)
+
+    ###### Next steps:
+    
+    * Install Plugins
+    * Setup User for administration
+    * Jenkins Dashboard on Ubuntu 22.04
+
+* Once Jenkins is up and running, Click on Manage Jenkins and then Manage Plugins
+
+* Search for Terraform under Available tab, Select the Plugin and then Click on Install without restart
+
+* Go to Manage Jenkins but this Global Tool Configuration
+    ```sh
+    * Name: This version must be consistent with the version of Jenkins we are going to refer in the Jenkins file
+    * Version: Use the same version
+    ```
+* Again go back to the main Jenkins console, click on Credentials and then global
+
+* Add Credentials and then Secret text
+
+* Here we want to add AWS_ACCESS_KEY_ID and AWS_SECRET_ACCESS_KEY in Secret Text so that when Jenkins job update doesn’t show AWS Key and Secret in plain text
+
+* New things that I am introducing here is the [JenkinsFile]()
+
+    * On the top of the pipeline, I am defining any agent that is available to run the pipeline
+    * Next step I am defining tools that is required to run the configuration and in this case terraform with version number that we setup during the global configuration.
+    * Next step we need some parameter that is required to run the pipeline, in this case workspace, Right now the only thing you need to know about workspace is that each workspace maintain seperate tfstate file, in this case I am putting development as default workspace
+
+* Next step is to setting up some environment variable
+
+    * Where to find terraform
+    * Setting up TF_IN_AUTOMATION = "true" will make terraform don't spit too much information
+    * Access and Secret key to interact with AWS
+
+* Various Stages of Terraform Pipeline
+
+![Image](https://miro.medium.com/max/1400/1*c4O8hLyR7HZG0kpdqt2E7Q.png)
+
+* Terraform init
+
+    * This is used to initialize a working directory containing our Terraform configuration files
+
+* Terraform Format
+
+    * In this case, I am checking the file checked in to the git is properly formatted if not simply failed at that point
+
+* Terraform Validate
+
+    * Simply check if the syntax of .tf file is proper or not
+
+* Terraform Plan
+
+    * Try to create a new workspace and if its already present just select it(default workspace is development)
+    * Then I am running a simple plan command, providing access and secret key and storing the output in terraform.tfplan
+    * Next step is I am stashing the output generated by Previous command so that we can use it later
+
+* Terraform Apply
+
+    * Here I am giving choice to the user whether he wants to apply this change or not, if he chooses Ready to Apply the config then terraform apply will run with the plan created earlier.
+
